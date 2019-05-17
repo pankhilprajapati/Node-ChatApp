@@ -11,35 +11,66 @@ const $messages = document.querySelector("#messages")
 const messageTemplate = document.querySelector("#message-template").innerHTML
 const urlTemplate = document.querySelector("#url-template").innerHTML
 
+const { username, room } = Qs.parse(location.search, { ignoreQueryPrefix: true })
+const sideTemplate = document.querySelector("#side-template").innerHTML
+
+const autoScroll = ()=>{
+    const $newMessage = $messages.lastElementChild
+
+    const newMessageStyles = getComputedStyle($newMessage)
+    const newMessageMargin = parseInt(newMessageStyles.marginBottom)
+    const newMessageHeight = $newMessage.offsetHeight+newMessageMargin
+
+    const visibleHeight = $messages.offsetHeight
+
+    const containerHeight = $messages.scrollHeight
+
+    const scrollOffset = $messages.scrollTop + visibleHeight
+
+    if(containerHeight - newMessageHeight <= scrollOffset){
+        $messages.scrollTop = $messages.scrollHeight
+    }
+}
+
 
 socket.on('message', (message) => {
     console.log(message)
     const html = Mustache.render(messageTemplate, {
+        username:message.username,
         message: message.text,
         createdAt: moment(message.createdAt).format('h:mm a')
     })
     $messages.insertAdjacentHTML('beforeend', html)
+    autoScroll()
 })
 
 
-socket.on('locationMessage', (url) => {
+socket.on('locationMessage', ( url) => {
     console.log(url)
     const html = Mustache.render(urlTemplate, {
+        username: url.username,
         url: url.url,
         createdAt: moment(url.createdAt).format('h:mm a')
     })
     $messages.insertAdjacentHTML('beforeend', html)
-
+    autoScroll()
 })
 
-document.querySelector('#message-form').addEventListener("submit", (e) => {
+socket.on('roomData',({room, users})=>{
+    const html = Mustache.render(sideTemplate,{
+        room,
+        users
+    })
+    document.querySelector("#side").innerHTML = html
+})
+
+$messageForm.addEventListener("submit", (e) => {
     e.preventDefault()
 
     $messageFormButton.setAttribute('disabled', 'disabled')
-    // dont know the working yet
-    const message = e.target.elements.message.value
 
-    // makes the form empty after the submit  
+    const message = e.target.elements.message.value
+ 
     socket.emit('sendMessage', message, (error) => {
         $messageFormButton.removeAttribute("disabled")
         $messageFormInput.value = ""
@@ -51,8 +82,7 @@ document.querySelector('#message-form').addEventListener("submit", (e) => {
     })
 })
 
-// for sending the location of the user in front end 
-document.querySelector('#send-location').addEventListener('click', () => {
+$locationButton.addEventListener('click', () => {
     if (!navigator.geolocation) {
         return alert("Not supported by the browser")
     }
@@ -70,4 +100,12 @@ document.querySelector('#send-location').addEventListener('click', () => {
             $locationButton.removeAttribute("disabled")
         })
     })
+})
+
+
+socket.emit("join",{username, room},(error)=>{
+    if(error){
+        alert(error)
+        location.href="/"
+    }
 })
